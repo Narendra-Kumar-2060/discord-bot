@@ -5,7 +5,7 @@ from google import genai
 from google.genai import types
 
 # ==========================================
-# 🎀 BOT PERSONALITY SETUP (KAWAII MODE)
+# ☕ BOT PERSONALITY SETUP
 # ==========================================
 SYSTEM_INSTRUCTION = """
 You are a warm, cozy café girl who runs an imaginary café inside Discord. ☕🌸
@@ -30,8 +30,9 @@ bot = discord.Client(intents=intents)
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 MODEL_NAME = 'gemma-4-26b-a4b-it'
 
-# 🧠 MEMORY SETUP: Store chat sessions per USER
+# 🧠 MEMORY SETUP: 25-turn sliding window
 chat_sessions = {}
+MAX_TURNS = 25
 
 @bot.event
 async def on_ready():
@@ -46,13 +47,13 @@ async def on_message(message):
     if bot.user.mentioned_in(message):
         prompt = message.content.replace(f'<@{bot.user.id}>', '').strip()
         
-        # 🧹 Reset command
+        # 🧹 Reset command (Generic)
         if prompt.lower() == 'reset':
             if message.author.id in chat_sessions:
                 del chat_sessions[message.author.id]
-                await message.reply("Ehehe~! 🧹✨ I wiped my memory clean! Who are you again? Nice to meet you! 💖")
+                await message.reply("My memory has been reset! ✨ Let's start a fresh conversation.")
             else:
-                await message.reply("I don't have any memories of you yet! Let's make some! >w< 🌸")
+                await message.reply("I don't have any memories of you yet! Let's start chatting. 💬")
             return
 
         async with message.channel.typing():
@@ -60,24 +61,38 @@ async def on_message(message):
                 if not prompt:
                     prompt = "Hello!"
 
-                # Create a new async chat session for this user
                 if message.author.id not in chat_sessions:
                     logging.info(f"Creating new chat session for user {message.author.name}")
-                    chat_sessions[message.author.id] = client.aio.chats.create(
+                    chat_sessions[message.author.id] = {
+                        "chat": client.aio.chats.create(
+                            model=MODEL_NAME,
+                            config=types.GenerateContentConfig(
+                                system_instruction=SYSTEM_INSTRUCTION,
+                                temperature=0.7,
+                            )
+                        ),
+                        "turns": 0
+                    }
+                
+                session = chat_sessions[message.author.id]
+
+                # 🔄 SLIDING WINDOW
+                if session["turns"] >= MAX_TURNS:
+                    logging.info(f"Sliding window triggered for {message.author.name}. Clearing old memories.")
+                    session["chat"] = client.aio.chats.create(
                         model=MODEL_NAME,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTION,
                             temperature=0.7,
                         )
                     )
-                
-                chat = chat_sessions[message.author.id]
+                    session["turns"] = 0
 
-                # ✅ Correct async method
-                response = await chat.send_message(prompt)
+                response = await session["chat"].send_message(prompt)
+                session["turns"] += 1
                 
                 if not response.text:
-                    await message.reply("A-Ah! I was so happy I forgot what to say! What did you ask me? 🥺💦")
+                    await message.reply("Hmm, I lost my train of thought for a second. Could you repeat that? 💭")
                     return
 
                 if len(response.text) <= 2000:
@@ -90,11 +105,12 @@ async def on_message(message):
             except Exception as e:
                 logging.error(f"Gemini API Error: {e}")
                 
+                # 🛠️ GENERIC ERROR MESSAGES (Personality-independent)
                 if "429" in str(e) or "quota" in str(e).lower():
-                    await message.reply("Wahhh! >w< You're chatting so fast that my poor little brain needs a tiny nap! 🥱💤 Please try again in a minute! 💖")
+                    await message.reply("I'm receiving too many requests right now. ⏳ Please give me a minute and try again.")
                 elif "timeout" in str(e).lower():
-                    await message.reply("O-Oh my! 🥺 I think I fell asleep waiting for the internet fairies! 🧚‍♀️✨ Can you poke me and try again? >w<")
+                    await message.reply("Oops, I think my connection dropped for a moment. 🌐 Could you try asking me again?")
                 else:
-                    await message.reply("Uwaaah! My sparkles got jumbled up! 😭✨ Give me another try, okay? 💕")
+                    await message.reply("Oh no, something went wrong on my end. 🛠️ Please give it another try!")
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
