@@ -27,7 +27,7 @@ bot = discord.Client(intents=intents)
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 MODEL_NAME = 'gemma-4-26b-a4b-it'
 
-# 🧠 MEMORY SETUP: Store chat sessions per USER (not channel!)
+# 🧠 MEMORY SETUP: Store chat sessions per USER
 chat_sessions = {}
 
 @bot.event
@@ -37,16 +37,13 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # 1. Ignore messages from bots
     if message.author.bot:
         return
 
-    # 2. Only reply if the bot is mentioned
     if bot.user.mentioned_in(message):
-        # Remove the mention from the prompt
         prompt = message.content.replace(f'<@{bot.user.id}>', '').strip()
         
-        # 3. Handle Reset Command
+        # 🧹 Reset command
         if prompt.lower() == 'reset':
             if message.author.id in chat_sessions:
                 del chat_sessions[message.author.id]
@@ -55,16 +52,15 @@ async def on_message(message):
                 await message.reply("I don't have any memories of you yet! Let's make some! >w< 🌸")
             return
 
-        # Show typing indicator
         async with message.channel.typing():
             try:
                 if not prompt:
                     prompt = "Hello!"
 
-                # 4. Create a NEW chat session for this specific USER if it doesn't exist
+                # Create a new async chat session for this user
                 if message.author.id not in chat_sessions:
-                    logging.info(f"Creating new chat session for user {message.author.name} ({message.author.id})")
-                    chat_sessions[message.author.id] = client.chats.create(
+                    logging.info(f"Creating new chat session for user {message.author.name}")
+                    chat_sessions[message.author.id] = client.aio.chats.create(
                         model=MODEL_NAME,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTION,
@@ -72,17 +68,15 @@ async def on_message(message):
                         )
                     )
                 
-                # Get the user's specific chat session
                 chat = chat_sessions[message.author.id]
 
-                # 5. Send the message
-                response = await chat.send_message_async(prompt)
+                # ✅ Correct async method
+                response = await chat.send_message(prompt)
                 
                 if not response.text:
                     await message.reply("A-Ah! I was so happy I forgot what to say! What did you ask me? 🥺💦")
                     return
 
-                # 6. Handle Discord's 2000 character limit
                 if len(response.text) <= 2000:
                     await message.reply(response.text)
                 else:
@@ -91,7 +85,6 @@ async def on_message(message):
                         await message.reply(chunk)
 
             except Exception as e:
-                # 7. Smart Error Handling
                 logging.error(f"Gemini API Error: {e}")
                 
                 if "429" in str(e) or "quota" in str(e).lower():
@@ -101,5 +94,4 @@ async def on_message(message):
                 else:
                     await message.reply("Uwaaah! My sparkles got jumbled up! 😭✨ Give me another try, okay? 💕")
 
-# Start the bot
 bot.run(os.environ.get("DISCORD_TOKEN"))
