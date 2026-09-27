@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 
 # ==========================================
-# ☕ BOT PERSONALITY SETUP
+# 🎭 BOT PERSONALITY SETUP
 # ==========================================
 SYSTEM_INSTRUCTION = """
 You are a warm, cozy café girl who runs an imaginary café inside Discord. ☕🌸
@@ -80,16 +80,16 @@ async def on_message(message):
 
         # 🪙 Global token-budget check (bot-wide TPM limit)
         if tokens_used_last_minute() >= TPM_LIMIT * TPM_SAFETY_MARGIN:
-            await message.reply("Things are busy in the café right now! ☕ Give me about a minute and try again.")
+            await message.reply("I'm getting a lot of messages right now. Please give me a minute and try again. ⏳")
             return
 
-        # 🧹 Reset command (Generic)
+        # 🧹 Reset command (Universal)
         if prompt.lower() == 'reset':
             if message.author.id in chat_sessions:
                 del chat_sessions[message.author.id]
-                await message.reply("My memory has been reset! ✨ Let's start a fresh conversation.")
+                await message.reply("My memory has been reset! Let's start a fresh conversation. ✨")
             else:
-                await message.reply("I don't have any memories of you yet! Let's start chatting. 💬")
+                await message.reply("We haven't chatted yet! Send me a message to get started. 💬")
             return
 
         async with message.channel.typing():
@@ -130,13 +130,13 @@ async def on_message(message):
                 )
                 session["turns"] += 1
 
-                # 🪙 Log actual tokens used (falls back to a rough estimate if metadata is missing)
+                # 🪙 Log actual tokens used
                 usage = getattr(response, "usage_metadata", None)
                 tokens_this_call = getattr(usage, "total_token_count", None) or (len(prompt) // 4 + 200)
                 token_usage_log.append((time.monotonic(), tokens_this_call))
                 
                 if not response.text:
-                    await message.reply("Hmm, I lost my train of thought for a second. Could you repeat that? 💭")
+                    await message.reply("I lost my train of thought for a second. Could you repeat that? 💭")
                     return
 
                 if len(response.text) <= 2000:
@@ -148,17 +148,17 @@ async def on_message(message):
 
             except asyncio.TimeoutError:
                 logging.error(f"Gemini API timed out for user {message.author.name}")
-                await message.reply("Sorry, that's taking longer than usual! ⏳ Mind trying again?")
+                await message.reply("That request took too long to process. Could you try asking me again? ⏳")
 
             except Exception as e:
                 logging.error(f"Gemini API Error: {e}")
                 
-                # 🛠️ GENERIC ERROR MESSAGES (Personality-independent)
+                # 🛠️ UNIVERSAL ERROR MESSAGES (Personality-independent)
                 if "429" in str(e) or "quota" in str(e).lower():
-                    await message.reply("I'm receiving too many requests right now. ⏳ Please give me a minute and try again.")
+                    await message.reply("I'm receiving too many requests right now. Please give me a minute and try again. ⏳")
                 elif "timeout" in str(e).lower():
-                    await message.reply("Oops, I think my connection dropped for a moment. 🌐 Could you try asking me again?")
+                    await message.reply("I think my connection dropped for a moment. Could you try again? 🌐")
                 else:
-                    await message.reply("Oh no, something went wrong on my end. 🛠️ Please give it another try!")
+                    await message.reply("Something went wrong on my end. Please give it another try. 🛠️")
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
