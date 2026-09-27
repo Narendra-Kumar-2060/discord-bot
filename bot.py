@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 import logging
+import collections
 import discord
 from google import genai
 from google.genai import types
@@ -42,6 +43,17 @@ MAX_PROMPT_CHARS = 1500    # cap on how much text we send to Gemini per message
 API_TIMEOUT_SECONDS = 30   # give up on a hung Gemini call after this long
 last_message_time = {}     # user_id -> last message timestamp
 
+# 🪙 GLOBAL TOKEN BUDGET (bot-wide, since the TPM limit applies across all users)
+TPM_LIMIT = 16000
+TPM_SAFETY_MARGIN = 0.9    # stop at 90% of the limit, leaving headroom
+token_usage_log = collections.deque()  # (timestamp, tokens_used) for the last 60s
+
+def tokens_used_last_minute():
+    now = time.monotonic()
+    while token_usage_log and now - token_usage_log[0][0] > 60:
+        token_usage_log.popleft()
+    return sum(tokens for _, tokens in token_usage_log)
+
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user} (ID: {bot.user.id})')
@@ -65,6 +77,11 @@ async def on_message(message):
         # ✂️ Cap prompt length so nobody can send a huge wall of text
         if len(prompt) > MAX_PROMPT_CHARS:
             prompt = prompt[:MAX_PROMPT_CHARS]
+
+        # 🪙 Global token-budget check (bot-wide TPM limit)
+        if tokens_used_last_minute() >= TPM_LIMIT * TPM_SAFETY_MARGIN:
+            await message.reply("Things are busy in the café right now! ☕ Give me about a minute and try again.")
+            return
 
         # 🧹 Reset command (Generic)
         if prompt.lower() == 'reset':
@@ -112,6 +129,11 @@ async def on_message(message):
                     timeout=API_TIMEOUT_SECONDS
                 )
                 session["turns"] += 1
+
+                # 🪙 Log actual tokens used (falls back to a rough estimate if metadata is missing)
+                usage = getattr(response, "usage_metadata", None)
+                tokens_this_call = getattr(usage, "total_token_count", None) or (len(prompt) // 4 + 200)
+                token_usage_log.append((time.monotonic(), tokens_this_call))
                 
                 if not response.text:
                     await message.reply("Hmm, I lost my train of thought for a second. Could you repeat that? 💭")
