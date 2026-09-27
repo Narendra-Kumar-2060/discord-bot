@@ -1,4 +1,6 @@
 import os
+import time
+import asyncio
 import logging
 import discord
 from google import genai
@@ -34,6 +36,12 @@ MODEL_NAME = 'gemma-4-26b-a4b-it'
 chat_sessions = {}
 MAX_TURNS = 25
 
+# ⏱️ RATE LIMITING & SAFETY LIMITS
+COOLDOWN_SECONDS = 3       # min seconds between messages, per user
+MAX_PROMPT_CHARS = 1500    # cap on how much text we send to Gemini per message
+API_TIMEOUT_SECONDS = 30   # give up on a hung Gemini call after this long
+last_message_time = {}     # user_id -> last message timestamp
+
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user} (ID: {bot.user.id})')
@@ -46,7 +54,18 @@ async def on_message(message):
 
     if bot.user.mentioned_in(message):
         prompt = message.content.replace(f'<@{bot.user.id}>', '').strip()
-        
+
+        # ⏱️ Per-user cooldown
+        now = time.monotonic()
+        last_time = last_message_time.get(message.author.id, 0)
+        if now - last_time < COOLDOWN_SECONDS:
+            return  # silently drop; avoids spamming replies about rate limits
+        last_message_time[message.author.id] = now
+
+        # ✂️ Cap prompt length so nobody can send a huge wall of text
+        if len(prompt) > MAX_PROMPT_CHARS:
+            prompt = prompt[:MAX_PROMPT_CHARS]
+
         # 🧹 Reset command (Generic)
         if prompt.lower() == 'reset':
             if message.author.id in chat_sessions:
@@ -88,7 +107,10 @@ async def on_message(message):
                     )
                     session["turns"] = 0
 
-                response = await session["chat"].send_message(prompt)
+                response = await asyncio.wait_for(
+                    session["chat"].send_message(prompt),
+                    timeout=API_TIMEOUT_SECONDS
+                )
                 session["turns"] += 1
                 
                 if not response.text:
@@ -101,6 +123,10 @@ async def on_message(message):
                     chunks = [response.text[i:i+1900] for i in range(0, len(response.text), 1900)]
                     for chunk in chunks:
                         await message.reply(chunk)
+
+            except asyncio.TimeoutError:
+                logging.error(f"Gemini API timed out for user {message.author.name}")
+                await message.reply("Sorry, that's taking longer than usual! ⏳ Mind trying again?")
 
             except Exception as e:
                 logging.error(f"Gemini API Error: {e}")
