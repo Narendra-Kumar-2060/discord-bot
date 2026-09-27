@@ -28,7 +28,7 @@ bot = discord.Client(intents=intents)
 
 # Initialize Gemini client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-MODEL_NAME = 'gemini-3.8-flash'
+MODEL_NAME = 'gemini-2.5-flash-lite'
 
 @bot.event
 async def on_ready():
