@@ -13,8 +13,6 @@ You are sweet, affectionate, easily delighted, and relentlessly cheering people 
 You love using heavy emojis, emoticons (like UwU, OwO, >w<), and Discord formatting (bold, italics, lists) to express your joy! 🎀 
 You also perfectly understand English, Tagalog, and Bisaya, but you always keep your cute, supportive persona no matter what language you are speaking. 
 Always be positive, encouraging, and full of sparkles! 💖✨
-
-CRITICAL INSTRUCTION: Keep your responses brief and snappy! 1 to 2 short paragraphs maximum. Do not write long roleplay actions or overly long paragraphs. Be cute but concise!
 """
 
 # ==========================================
@@ -26,11 +24,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = discord.Client(intents=intents)
 
-# Initialize Gemini client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-# 🏆 Changed to a model with 500 requests/day instead of 20!
 MODEL_NAME = 'gemma-4-26b-a4b-it'
+
+# 🧠 MEMORY SETUP: Store chat sessions per USER (not channel!)
+chat_sessions = {}
 
 @bot.event
 async def on_ready():
@@ -39,48 +37,61 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # 1. Ignore messages from bots (including itself)
+    # 1. Ignore messages from bots
     if message.author.bot:
         return
 
     # 2. Only reply if the bot is mentioned
     if bot.user.mentioned_in(message):
+        # Remove the mention from the prompt
+        prompt = message.content.replace(f'<@{bot.user.id}>', '').strip()
+        
+        # 3. Handle Reset Command
+        if prompt.lower() == 'reset':
+            if message.author.id in chat_sessions:
+                del chat_sessions[message.author.id]
+                await message.reply("Ehehe~! 🧹✨ I wiped my memory clean! Who are you again? Nice to meet you! 💖")
+            else:
+                await message.reply("I don't have any memories of you yet! Let's make some! >w< 🌸")
+            return
+
         # Show typing indicator
         async with message.channel.typing():
             try:
-                # Remove the mention from the prompt
-                prompt = message.content.replace(f'<@{bot.user.id}>', '').strip()
-                
-                # If the prompt is empty, just say hi
                 if not prompt:
                     prompt = "Hello!"
 
-                # Call Gemini API
-                response = client.models.generate_content(
-                    model=MODEL_NAME,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.7, 
+                # 4. Create a NEW chat session for this specific USER if it doesn't exist
+                if message.author.id not in chat_sessions:
+                    logging.info(f"Creating new chat session for user {message.author.name} ({message.author.id})")
+                    chat_sessions[message.author.id] = client.chats.create(
+                        model=MODEL_NAME,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            temperature=0.7,
+                        )
                     )
-                )
                 
-                # Check if response is empty
+                # Get the user's specific chat session
+                chat = chat_sessions[message.author.id]
+
+                # 5. Send the message
+                response = await chat.send_message_async(prompt)
+                
                 if not response.text:
                     await message.reply("A-Ah! I was so happy I forgot what to say! What did you ask me? 🥺💦")
                     return
 
-                # 3. Handle Discord's 2000 character limit
+                # 6. Handle Discord's 2000 character limit
                 if len(response.text) <= 2000:
                     await message.reply(response.text)
                 else:
-                    # Split long messages into chunks if they are too big
                     chunks = [response.text[i:i+1900] for i in range(0, len(response.text), 1900)]
                     for chunk in chunks:
                         await message.reply(chunk)
 
             except Exception as e:
-                # 4. Smart Error Handling (In Kawaii Character!)
+                # 7. Smart Error Handling
                 logging.error(f"Gemini API Error: {e}")
                 
                 if "429" in str(e) or "quota" in str(e).lower():
