@@ -24,7 +24,7 @@ async def on_message(message):
             try:
                 prompt = message.content.replace(f'<@{bot.user.id}>', '').strip()
                 response = client.models.generate_content(
-                    model='gemini-1.5-flash',
+                    model='gemini-3.8-flash',
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         system_instruction="You are a witty, sarcastic, and fun Discord bot. Keep your answers short, punchy, and use emojis."
