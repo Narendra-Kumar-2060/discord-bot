@@ -30,7 +30,7 @@ bot = discord.Client(intents=intents)
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # 🏆 Changed to a model with 500 requests/day instead of 20!
-MODEL_NAME = 'gemma-4-26b'
+MODEL_NAME = 'gemma-4-26b-a4b-it'
 
 @bot.event
 async def on_ready():
