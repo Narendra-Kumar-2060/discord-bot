@@ -28,7 +28,9 @@ bot = discord.Client(intents=intents)
 
 # Initialize Gemini client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-MODEL_NAME = 'gemini-2.5-flash-lite'
+
+# 🏆 Changed to a model with 500 requests/day instead of 20!
+MODEL_NAME = 'gemma-4-26b'
 
 @bot.event
 async def on_ready():
@@ -59,7 +61,7 @@ async def on_message(message):
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.7, # Lowered to 0.7 for shorter, more focused responses
+                        temperature=0.7, 
                     )
                 )
                 
