@@ -119,8 +119,7 @@ MODEL_NAME = 'gemma-4-26b-a4b-it'
 chat_sessions = {}
 MAX_TURNS = 12
 
-# ✂️ REPLY LENGTH: cap output tokens, but nudge the model to finish its thoughts within it
-MAX_OUTPUT_TOKENS = 600
+# ✂️ REPLY LENGTH: no hard cap (it was cutting replies off), just a gentle nudge in the prompt
 LENGTH_GUIDANCE = (
     "\n\nKeep replies conversational and reasonably brief, usually a few sentences "
     "to a couple of short paragraphs. Always finish your thoughts cleanly."
@@ -135,7 +134,6 @@ def build_config(user_id):
     return types.GenerateContentConfig(
         system_instruction=base + LENGTH_GUIDANCE,
         temperature=0.7,
-        max_output_tokens=MAX_OUTPUT_TOKENS,
     )
 
 # ⏱️ RATE LIMITING & SAFETY LIMITS
