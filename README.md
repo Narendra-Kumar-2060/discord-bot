@@ -112,5 +112,4 @@ to tune behavior:
 
 ## License
 
-Add a license of your choice here (MIT is a common, permissive default for
-personal projects).
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
